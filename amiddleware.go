@@ -6,7 +6,7 @@ import (
 	"github.com/qwark97/alog"
 )
 
-type Layer func(http.ResponseWriter, *http.Request) *LayerError
+type Layer func(http.ResponseWriter, *http.Request) (interrupt bool, err *LayerError)
 
 type LayerError struct {
 	HTTPStatus int
@@ -34,9 +34,11 @@ func (mw Middleware) Use(f Layer) Middleware {
 func (mw Middleware) With(handler http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		for _, layer := range mw.layers {
-			if layerErr := layer(w, req); layerErr != nil {
-				mw.log.Error(layerErr.Error())
-				http.Error(w, layerErr.Message, layerErr.HTTPStatus)
+			if interrupt, err := layer(w, req); err != nil {
+				mw.log.Error(err.Error())
+				http.Error(w, err.Message, err.HTTPStatus)
+				return
+			} else if interrupt {
 				return
 			}
 		}
